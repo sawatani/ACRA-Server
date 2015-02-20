@@ -48,16 +48,15 @@ object CrashReceiver extends Controller {
       Array(username, password) = new String(decoded, "UTF-8").split(":", 2)
     } yield (username, password)
   }
-  def report(appName: String) = Action.async(parse.json) { implicit request =>
+  def report(appName: String) = Action.async(parse.text) { implicit request =>
     Future {
       loadConfig(appName) match {
         case None => NotFound
         case Some(config) => decodeBasicAuth(request) match {
           case Some((u, p)) if (config.username == u && config.password == p) =>
-            val json = request.body
             val attributes = Map(
               "timestamp" -> DateUtils.formatISO8601Date(new Date),
-              "value" -> json.toString
+              "value" -> request.body
             )
             val result = client.putItem(config.tableName, attributes)
             Logger debug f"Put crash report (${config.tableName}: ${result}"
