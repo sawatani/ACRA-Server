@@ -20,25 +20,42 @@ import com.amazonaws.util.DateUtils
 import service.AWS.DynamoDB.client
 
 object CrashReceiver extends Controller {
-  case class AppConfig(tableName: String, username: String, password: String)
-  object AppConfig {
-    implicit val json = Json.format[AppConfig]
-  }
   implicit def stringsToAttributes(strings: Map[String, String]): java.util.Map[String, AttributeValue] = strings.map {
     case (name, value) =>
       name -> new AttributeValue().withS(value)
   }
-
-  def loadConfig(appName: String) = {
-    val key = Map("name" -> appName)
-    allCatch.opt {
-      for {
-        result <- Option(client.getItem(f"ACRA-APPLICATIONS", key, true))
-        item <- Option(result.getItem)
-        value <- Option(item.get("config")).map(_.getS)
-      } yield Json.parse(value).as[AppConfig]
-    }.flatten
+  // Access to Database
+  case class AppConfig(tableName: String, username: String, password: String) {
+    def checkAccount(theUsername: String, thePassword: String): Boolean = {
+      username == theUsername && password == thePassword
+    }
+    def putReport(id: String, report: JsValue) {
+      val name = f"ACRA-${tableName}"
+      val attributes = Map(
+        "ID" -> id,
+        "REPORT" -> report.toString,
+        "CREATED_AT" -> DateUtils.formatISO8601Date(new Date)
+      )
+      Logger debug f"Putting crash report (${name}): ${attributes}"
+      val result = client.putItem(name, attributes)
+      Logger debug f"Put crash report (${name}): ${result}"
+    }
   }
+  object AppConfig {
+    implicit val json = Json.format[AppConfig]
+    def load(appName: String) = {
+      val key = Map("ID" -> appName)
+      Logger debug f"Finding application: ${key}"
+      allCatch.opt {
+        for {
+          result <- Option(client.getItem(f"ACRA-APPLICATIONS", key, true))
+          item <- Option(result.getItem)
+          value <- Option(item.get("CONFIG")).map(_.getS)
+        } yield Json.parse(value).as[AppConfig]
+      }.flatten
+    }
+  }
+
   def decodeBasicAuth(request: RequestHeader): Option[(String, String)] = {
     for {
       authText <- request.headers.get("authorization")
@@ -48,18 +65,13 @@ object CrashReceiver extends Controller {
       Array(username, password) = new String(decoded, "UTF-8").split(":", 2)
     } yield (username, password)
   }
-  def report(appName: String) = Action.async(parse.text) { implicit request =>
+  def report(appName: String, id: String) = Action.async(parse.json) { implicit request =>
     Future {
-      loadConfig(appName) match {
+      AppConfig.load(appName) match {
         case None => NotFound
         case Some(config) => decodeBasicAuth(request) match {
-          case Some((u, p)) if (config.username == u && config.password == p) =>
-            val attributes = Map(
-              "timestamp" -> DateUtils.formatISO8601Date(new Date),
-              "value" -> request.body
-            )
-            val result = client.putItem(config.tableName, attributes)
-            Logger debug f"Put crash report (${config.tableName}: ${result}"
+          case Some((u, p)) if config.checkAccount(u, p) =>
+            config.putReport(id, request.body)
             Ok
           case _ =>
             Logger warn f"Login failure: from ${request.remoteAddress} to ${request.uri}"
