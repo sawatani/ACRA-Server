@@ -2,8 +2,6 @@ package controllers
 
 import java.util.Date
 
-import scala.annotation.implicitNotFound
-import scala.collection.JavaConversions._
 import scala.concurrent.Future
 
 import play.api.Logger
@@ -14,44 +12,35 @@ import play.api.mvc.{ Action, Controller, RequestHeader }
 import org.apache.commons.codec.binary.Base64
 import org.fathens.play.util.Exception.allCatch
 
-import com.amazonaws.services.dynamodbv2.model._
 import com.amazonaws.util.DateUtils
 
-import service.AWS.DynamoDB.client
+import service.AWS.DynamoDB
 
 object CrashReceiver extends Controller {
-  implicit def stringsToAttributes(strings: Map[String, String]): java.util.Map[String, AttributeValue] = strings.map {
-    case (name, value) =>
-      name -> new AttributeValue().withS(value)
-  }
   // Access to Database
   case class AppConfig(tableName: String, username: String, password: String) {
     def checkAccount(theUsername: String, thePassword: String): Boolean = {
       username == theUsername && password == thePassword
     }
     def putReport(id: String, report: JsValue): Boolean = {
-      val name = f"ACRA-${tableName}"
-      val attributes = Map(
-        "ID" -> id,
-        "REPORT" -> report.toString,
-        "CREATED_AT" -> DateUtils.formatISO8601Date(new Date)
-      )
-      Logger debug f"Putting crash report (${name}): ${id}"
-      val result = allCatch.opt { Option(client.putItem(name, attributes)) }.flatten
-      Logger debug f"Put crash report (${name}): ${id}: ${result}"
+      val table = DynamoDB table f"ACRA-${tableName}"
+      val item = DynamoDB.item(id).withJSON("REPORT", report.toString).withString("CREATED_AT", DateUtils.formatISO8601Date(new Date))
+      Logger debug f"Putting crash report (${table}): ${id}"
+      val result = allCatch.opt { Option(table putItem item) }.flatten
+      Logger debug f"Put crash report (${table}): ${id}: ${result}"
       result.isDefined
     }
   }
   object AppConfig {
     implicit val json = Json.format[AppConfig]
     def load(appName: String) = {
-      val key = Map("ID" -> appName)
-      Logger debug f"Finding application: ${key}"
+      val spec = DynamoDB.spec(appName).withAttributesToGet("CONFIG")
+      Logger debug f"Finding application: ${spec}"
       allCatch.opt {
         for {
-          result <- Option(client.getItem(f"ACRA-APPLICATIONS", key, true))
-          item <- Option(result.getItem)
-          value <- Option(item.get("CONFIG")).map(_.getS)
+          table <- Option(DynamoDB table "ACRA-APPLICATIONS")
+          item <- Option(table getItem spec)
+          value <- Option(item.getJSONPretty("CONFIG"))
         } yield Json.parse(value).as[AppConfig]
       }.flatten
     }
