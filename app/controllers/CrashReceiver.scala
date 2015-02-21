@@ -29,16 +29,17 @@ object CrashReceiver extends Controller {
     def checkAccount(theUsername: String, thePassword: String): Boolean = {
       username == theUsername && password == thePassword
     }
-    def putReport(id: String, report: JsValue) {
+    def putReport(id: String, report: JsValue): Boolean = {
       val name = f"ACRA-${tableName}"
       val attributes = Map(
         "ID" -> id,
         "REPORT" -> report.toString,
         "CREATED_AT" -> DateUtils.formatISO8601Date(new Date)
       )
-      Logger debug f"Putting crash report (${name}): ${attributes}"
-      val result = client.putItem(name, attributes)
-      Logger debug f"Put crash report (${name}): ${result}"
+      Logger debug f"Putting crash report (${name}): ${id}"
+      val result = allCatch.opt { Option(client.putItem(name, attributes)) }.flatten
+      Logger debug f"Put crash report (${name}): ${id}: ${result}"
+      result.isDefined
     }
   }
   object AppConfig {
@@ -71,8 +72,7 @@ object CrashReceiver extends Controller {
         case None => NotFound
         case Some(config) => decodeBasicAuth(request) match {
           case Some((u, p)) if config.checkAccount(u, p) =>
-            config.putReport(id, request.body)
-            Ok
+            if (config.putReport(id, request.body)) Ok else InternalServerError
           case _ =>
             Logger warn f"Login failure: from ${request.remoteAddress} to ${request.uri}"
             Unauthorized.withHeaders(("WWW-Authenticate" -> f"""Basic realm="${appName}""""))
