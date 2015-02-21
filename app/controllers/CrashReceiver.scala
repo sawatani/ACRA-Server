@@ -34,13 +34,12 @@ object CrashReceiver extends Controller {
   object AppConfig {
     implicit val json = Json.format[AppConfig]
     def load(appName: String) = {
-      val spec = DynamoDB.spec(appName).withAttributesToGet("CONFIG")
-      Logger debug f"Finding application: ${spec}"
+      Logger debug f"Finding application: ${appName}"
       allCatch.opt {
         for {
           table <- Option(DynamoDB table "ACRA-APPLICATIONS")
-          item <- Option(table getItem spec)
-          value <- Option(item.getJSONPretty("CONFIG"))
+          item <- Option(table getItem DynamoDB.spec(appName))
+          value <- Option(item getJSONPretty "CONFIG")
         } yield Json.parse(value).as[AppConfig]
       }.flatten
     }
