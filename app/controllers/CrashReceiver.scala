@@ -24,7 +24,7 @@ object CrashReceiver extends Controller {
     }
     def putReport(id: String, report: JsValue): Boolean = {
       val table = DynamoDB table f"ACRA-${tableName}"
-      val item = DynamoDB.item(id).withJSON("REPORT", report.toString).withString("CREATED_AT", DateUtils.formatISO8601Date(new Date))
+      val item = DynamoDB.item(id).withString("REPORT", report.toString).withString("CREATED_AT", DateUtils.formatISO8601Date(new Date))
       Logger debug f"Putting crash report (${table}): ${id}"
       val result = allCatch.opt { Option(table putItem item) }.flatten
       Logger debug f"Put crash report (${table}): ${id}: ${result}"
