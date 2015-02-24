@@ -39,7 +39,7 @@ object CrashReceiver extends Controller {
         for {
           table <- Option(DynamoDB table "ACRA-APPLICATIONS")
           item <- Option(table getItem DynamoDB.spec(appName))
-          value <- Option(item getJSONPretty "CONFIG")
+          value <- Option(item getJSON "CONFIG")
         } yield Json.parse(value).as[AppConfig]
       }.flatten
     }
