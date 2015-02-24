@@ -12,12 +12,12 @@ object AWS {
     new BasicAWSCredentials(id, key)
   }
   object DynamoDB {
-    val client = {
+    lazy val client = {
       val c = new com.amazonaws.services.dynamodbv2.AmazonDynamoDBClient(credential)
       c.setEndpoint(f"dynamodb.${region}.amazonaws.com")
       c
     }
-    val delegate = new Delegate(client)
+    lazy val delegate = new Delegate(client)
     def table(name: String) = delegate getTable f"ACRA.${name}"
     def spec(id: String) = new GetItemSpec().withPrimaryKey("ID", id)
     def item(id: String) = new Item().withPrimaryKey("ID", id)
