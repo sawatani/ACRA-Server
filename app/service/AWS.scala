@@ -18,7 +18,7 @@ object AWS {
       c
     }
     val delegate = new Delegate(client)
-    def table(name: String) = delegate.getTable(name)
+    def table(name: String) = delegate getTable f"ACRA.${name}"
     def spec(id: String) = new GetItemSpec().withPrimaryKey("ID", id)
     def item(id: String) = new Item().withPrimaryKey("ID", id)
   }

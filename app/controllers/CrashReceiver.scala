@@ -23,7 +23,7 @@ object CrashReceiver extends Controller {
       username == theUsername && password == thePassword
     }
     def putReport(id: String, report: JsValue): Boolean = {
-      val table = DynamoDB table f"ACRA-${tableName}"
+      val table = DynamoDB table tableName
       val item = DynamoDB.item(id).withString("REPORT", report.toString).withString("CREATED_AT", DateUtils.formatISO8601Date(new Date))
       Logger debug f"Putting crash report (${table}): ${id}"
       val result = allCatch.opt { Option(table putItem item) }.flatten
@@ -37,7 +37,7 @@ object CrashReceiver extends Controller {
       Logger debug f"Finding application: ${appName}"
       allCatch.opt {
         for {
-          table <- Option(DynamoDB table "ACRA-APPLICATIONS")
+          table <- Option(DynamoDB table "APPLICATIONS")
           item <- Option(table getItem DynamoDB.spec(appName))
           value <- Option(item getJSON "CONFIG")
         } yield Json.parse(value).as[AppConfig]
