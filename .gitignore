@@ -1,6 +1,4 @@
 .*
-project/project
-project/target
-target
-/bin/
-/logs/
+node_modules
+*.zip
+test-*
